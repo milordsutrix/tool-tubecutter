@@ -86,8 +86,27 @@ export default function ProcessingCard({
     return selections.every(s => {
       if (!s.startTime || !s.endTime || !s.title.trim()) return false;
       
-      const timePattern = /^([0-5]?[0-9]):([0-5][0-9])$|^([0-1]?[0-9]):([0-5]?[0-9]):([0-5][0-9])$/;
-      return timePattern.test(s.startTime) && timePattern.test(s.endTime);
+      // More flexible time pattern - allow MM:SS or HH:MM:SS format
+      const timePattern = /^(\d{1,2}):([0-5]?\d)$|^(\d{1,2}):([0-5]?\d):([0-5]?\d)$/;
+      const startValid = timePattern.test(s.startTime);
+      const endValid = timePattern.test(s.endTime);
+      
+      if (!startValid || !endValid) return false;
+      
+      // Validate start < end
+      const parseTime = (time: string): number => {
+        const parts = time.split(':').map(n => parseInt(n));
+        if (parts.length === 2) {
+          return parts[0] * 60 + parts[1];
+        } else if (parts.length === 3) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+        return 0;
+      };
+      
+      const startSeconds = parseTime(s.startTime);
+      const endSeconds = parseTime(s.endTime);
+      return startSeconds < endSeconds;
     });
   };
 
@@ -116,7 +135,7 @@ export default function ProcessingCard({
               <div className="text-sm text-gray-600">Selections</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-secondary">{calculateTotalDuration()}</div>
+              <div className="text-2xl font-bold text-primary">{calculateTotalDuration()}</div>
               <div className="text-sm text-gray-600">Total Duration</div>
             </div>
             <div>
@@ -131,6 +150,27 @@ export default function ProcessingCard({
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Validation Status */}
+        {selections.length > 0 && (
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="text-sm">
+              <div className="flex items-center space-x-2 mb-2">
+                <span className="font-medium text-blue-900">Validation Status:</span>
+                {isValidForProcessing() ? (
+                  <span className="text-green-600 font-medium">✓ Ready to process</span>
+                ) : (
+                  <span className="text-amber-600 font-medium">⚠ Please complete all fields</span>
+                )}
+              </div>
+              <div className="text-blue-700 text-xs">
+                • YouTube URL: {youtubeUrl && videoInfo ? '✓' : '✗'}<br/>
+                • Selections: {selections.length > 0 ? '✓' : '✗'}<br/>
+                • All fields filled: {selections.every(s => s.startTime && s.endTime && s.title.trim()) ? '✓' : '✗'}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Process Button */}
