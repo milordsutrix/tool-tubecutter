@@ -179,7 +179,7 @@ export default function ProcessingCard({
                 )}
               </div>
               <div className="text-blue-700 text-xs">
-                • YouTube URL: {youtubeUrl && videoInfo ? '✓' : '✗'}<br/>
+                • {sourceType === "youtube" ? "YouTube URL" : "Uploaded File"}: {videoInfo ? '✓' : '✗'}<br/>
                 • Selections: {selections.length > 0 ? '✓' : '✗'}<br/>
                 • All fields filled: {selections.every(s => s.startTime && s.endTime && s.title.trim()) ? '✓' : '✗'}
               </div>
