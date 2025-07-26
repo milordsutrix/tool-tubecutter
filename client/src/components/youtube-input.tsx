@@ -14,7 +14,7 @@ interface YouTubeInputProps {
   youtubeUrl: string;
   setYoutubeUrl: (url: string) => void;
   videoInfo: VideoInfo | null;
-  setVideoInfo: (info: VideoInfo | null) => void;
+  setVideoInfo: (info: VideoInfo | null, videoId?: string) => void;
 }
 
 export default function YouTubeInput({
@@ -37,7 +37,7 @@ export default function YouTubeInput({
         duration: formatDuration(data.videoInfo.duration),
         thumbnail: data.videoInfo.thumbnail,
         channel: data.videoInfo.channel,
-      });
+      }, data.videoId);
     },
     onError: (error: Error) => {
       setError(error.message);

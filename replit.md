@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a full-stack web application that allows users to extract audio segments from YouTube videos. Users can input a YouTube URL, define multiple time-based selections, and download individual MP3 files for each segment. The application uses a modern React frontend with shadcn/ui components and an Express.js backend with PostgreSQL database integration.
+This is a full-stack web application that allows users to extract audio segments from both YouTube videos and uploaded MP3 files. Users can input a YouTube URL or upload an MP3 file, define multiple time-based selections, and download individual MP3 files for each segment. The application uses a modern React frontend with shadcn/ui components and an Express.js backend with PostgreSQL database integration.
 
 ## User Preferences
 
@@ -36,19 +36,21 @@ Preferred communication style: Simple, everyday language.
 ## Key Components
 
 ### Database Schema
-- **Videos Table**: Stores YouTube video metadata (URL, title, duration, thumbnail, channel, status)
+- **Videos Table**: Stores video/audio metadata (YouTube URL or uploaded file path, source type, title, duration, thumbnail, channel, status)
 - **Selections Table**: Defines time-based segments within videos (start/end times, titles, file paths)
 - **Jobs Table**: Tracks processing status and progress for video operations
 
 ### API Endpoints
 - `POST /api/youtube/validate` - Validates YouTube URLs and retrieves video information
-- `POST /api/process` - Initiates audio extraction job for specified video segments
+- `POST /api/upload` - Handles MP3 file uploads and extracts metadata
+- `POST /api/process` - Initiates audio extraction job for specified video/audio segments (supports both YouTube and uploaded files)
 - `GET /api/jobs/:id` - Retrieves job status and associated selections for progress tracking
 
 ### Frontend Components
 - **YouTubeInput**: URL validation and video information display
+- **AudioUpload**: MP3 file upload with drag-and-drop support and metadata extraction
 - **SelectionsManager**: Interface for defining multiple time-based audio segments
-- **ProcessingCard**: Job initiation and configuration summary
+- **ProcessingCard**: Job initiation and configuration summary (supports both source types)
 - **DownloadsCard**: Real-time progress tracking and download management
 
 ### Services
@@ -58,10 +60,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Data Flow
 
-1. **Video Input**: User submits YouTube URL → Backend validates with yt-dlp → Returns video metadata
+1. **Audio Input**: 
+   - **YouTube**: User submits YouTube URL → Backend validates with yt-dlp → Returns video metadata
+   - **Upload**: User uploads MP3 file → Backend extracts metadata with FFprobe → Returns audio information
 2. **Selection Definition**: User defines time segments → Frontend validates and manages selection state
 3. **Processing Initiation**: User submits job → Backend creates video/selections/job records → Initiates audio processing
-4. **Audio Extraction**: Background process downloads video → Extracts specified segments → Saves MP3 files
+4. **Audio Extraction**: Background process downloads video (YouTube) or uses uploaded file → Extracts specified segments → Saves MP3 files
 5. **Progress Tracking**: Frontend polls job status → Displays real-time progress → Enables downloads when complete
 
 ## External Dependencies
@@ -104,3 +108,12 @@ Preferred communication style: Simple, everyday language.
 - **Real-time Updates**: Polling-based progress tracking (extensible to WebSockets)
 
 The application follows a traditional client-server architecture with clear separation of concerns, type-safe data flow, and modern development tooling for maintainability and developer experience.
+
+## Recent Changes
+
+### January 26, 2025
+- **Added MP3 Upload Feature**: Implemented file upload alternative to YouTube URLs to bypass anti-bot restrictions
+- **Enhanced Database Schema**: Updated videos table to support both YouTube URLs and uploaded files with source type differentiation
+- **Dual Input Interface**: Created tabbed interface allowing users to choose between YouTube URL input and MP3 file upload
+- **File Processing**: Added FFprobe integration for extracting metadata from uploaded MP3 files
+- **Unified Processing**: Updated processing pipeline to handle both YouTube downloads and uploaded files seamlessly

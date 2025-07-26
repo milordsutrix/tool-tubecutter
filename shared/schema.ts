@@ -5,7 +5,9 @@ import { z } from "zod";
 
 export const videos = pgTable("videos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  youtubeUrl: text("youtube_url").notNull(),
+  youtubeUrl: text("youtube_url"),
+  uploadedFile: text("uploaded_file"), // path to uploaded MP3 file
+  sourceType: text("source_type").notNull().default("youtube"), // youtube or upload
   title: text("title").notNull(),
   duration: integer("duration").notNull(), // in seconds
   thumbnail: text("thumbnail"),
@@ -55,16 +57,27 @@ export const insertJobSchema = createInsertSchema(jobs).omit({
 
 // Request/Response schemas
 export const processVideoRequestSchema = z.object({
-  youtubeUrl: z.string().url(),
+  sourceType: z.enum(["youtube", "upload"]),
+  youtubeUrl: z.string().url().optional(),
+  uploadedFileId: z.string().optional(),
   selections: z.array(z.object({
     startTime: z.string().regex(/^([0-5]?[0-9]):([0-5][0-9])$|^([0-1]?[0-9]):([0-5]?[0-9]):([0-5][0-9])$/),
     endTime: z.string().regex(/^([0-5]?[0-9]):([0-5][0-9])$|^([0-1]?[0-9]):([0-5]?[0-9]):([0-5][0-9])$/),
     title: z.string().min(1),
   })).min(1),
-});
+}).refine((data) => {
+  if (data.sourceType === "youtube") return !!data.youtubeUrl;
+  if (data.sourceType === "upload") return !!data.uploadedFileId;
+  return false;
+}, { message: "Either youtubeUrl or uploadedFileId must be provided based on sourceType" });
 
 export const validateYoutubeUrlSchema = z.object({
   youtubeUrl: z.string().url(),
+});
+
+export const uploadAudioSchema = z.object({
+  title: z.string().min(1),
+  duration: z.number().positive(),
 });
 
 export type InsertVideo = z.infer<typeof insertVideoSchema>;

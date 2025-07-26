@@ -9,14 +9,18 @@ import { apiRequest } from "@/lib/queryClient";
 import { VideoInfo, Selection } from "@/pages/home";
 
 interface ProcessingCardProps {
-  youtubeUrl: string;
+  sourceType: "youtube" | "upload";
+  youtubeUrl?: string;
+  uploadedFileId?: string | null;
   videoInfo: VideoInfo | null;
   selections: Selection[];
   onProcessingStart: (jobId: string, videoId: string) => void;
 }
 
 export default function ProcessingCard({
+  sourceType,
   youtubeUrl,
+  uploadedFileId,
   videoInfo,
   selections,
   onProcessingStart,
@@ -25,14 +29,22 @@ export default function ProcessingCard({
 
   const processMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/process", {
-        youtubeUrl,
+      const requestBody: any = {
+        sourceType,
         selections: selections.map(s => ({
           startTime: s.startTime,
           endTime: s.endTime,
           title: s.title,
         })),
-      });
+      };
+      
+      if (sourceType === "youtube") {
+        requestBody.youtubeUrl = youtubeUrl;
+      } else {
+        requestBody.uploadedFileId = uploadedFileId;
+      }
+      
+      const response = await apiRequest("POST", "/api/process", requestBody);
       return response.json();
     },
     onSuccess: (data) => {
@@ -81,7 +93,9 @@ export default function ProcessingCard({
   };
 
   const isValidForProcessing = (): boolean => {
-    if (!youtubeUrl || !videoInfo || selections.length === 0) return false;
+    if (!videoInfo || selections.length === 0) return false;
+    if (sourceType === "youtube" && !youtubeUrl) return false;
+    if (sourceType === "upload" && !uploadedFileId) return false;
     
     return selections.every(s => {
       if (!s.startTime || !s.endTime || !s.title.trim()) return false;

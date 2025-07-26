@@ -40,7 +40,12 @@ export class MemStorage implements IStorage {
     const video: Video = { 
       ...insertVideo, 
       id,
-      status: "pending"
+      status: "pending",
+      youtubeUrl: insertVideo.youtubeUrl || null,
+      uploadedFile: insertVideo.uploadedFile || null,
+      sourceType: insertVideo.sourceType || "youtube",
+      thumbnail: insertVideo.thumbnail || null,
+      channel: insertVideo.channel || null,
     };
     this.videos.set(id, video);
     return video;
