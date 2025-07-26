@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 
 export interface VideoInfo {
   title: string;
@@ -79,43 +80,86 @@ export class YouTubeService {
 
   async downloadAudio(url: string, outputPath: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const ytDlp = spawn('yt-dlp', [
-        '-x',
-        '--audio-format', 'mp3',
-        '--audio-quality', '0',
-        '-o', path.join(outputPath, '%(title)s.%(ext)s'),
-        url
-      ]);
+      // Multiple fallback strategies for YouTube's anti-bot measures
+      const strategies = [
+        // Strategy 1: Use iOS client
+        [
+          '--extractor-args', 'youtube:player_client=ios',
+          '-x', '--audio-format', 'mp3', '--audio-quality', '0',
+          '-f', 'bestaudio',
+          '-o', path.join(outputPath, '%(title)s.%(ext)s'),
+          url
+        ],
+        // Strategy 2: Use web client with specific headers
+        [
+          '--extractor-args', 'youtube:player_client=web',
+          '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          '--referer', 'https://www.youtube.com/',
+          '-x', '--audio-format', 'mp3', '--audio-quality', '0',
+          '-f', 'bestaudio',
+          '-o', path.join(outputPath, '%(title)s.%(ext)s'),
+          url
+        ],
+        // Strategy 3: Basic download without client specification
+        [
+          '-x', '--audio-format', 'mp3', '--audio-quality', '0',
+          '-f', 'worst',
+          '-o', path.join(outputPath, '%(title)s.%(ext)s'),
+          url
+        ]
+      ];
 
-      let output = '';
-      let error = '';
-
-      ytDlp.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      ytDlp.stderr.on('data', (data) => {
-        error += data.toString();
-      });
-
-      ytDlp.on('close', (code) => {
-        if (code !== 0) {
-          reject(new Error(`Failed to download audio: ${error}`));
+      const tryDownload = (strategyIndex: number = 0): void => {
+        if (strategyIndex >= strategies.length) {
+          reject(new Error('YouTube download failed: This video may be restricted or have anti-bot protection. YouTube has been blocking many download attempts since 2024. Try using a different video, or consider using YouTube Premium for offline access.'));
           return;
         }
 
-        // Extract the downloaded file path from output
-        const match = output.match(/\[download\] (.+\.mp3)/);
-        if (match) {
-          resolve(match[1]);
-        } else {
-          reject(new Error('Could not determine downloaded file path'));
-        }
-      });
+        const ytDlp = spawn('yt-dlp', strategies[strategyIndex]);
 
-      ytDlp.on('error', (err) => {
-        reject(new Error(`yt-dlp error: ${err.message}`));
-      });
+        let output = '';
+        let error = '';
+
+        ytDlp.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+
+        ytDlp.stderr.on('data', (data) => {
+          error += data.toString();
+        });
+
+        ytDlp.on('close', (code) => {
+          if (code !== 0) {
+            console.log(`Strategy ${strategyIndex + 1} failed:`, error);
+            // Try next strategy
+            tryDownload(strategyIndex + 1);
+            return;
+          }
+
+          // Extract the downloaded file path from output
+          const match = output.match(/\[download\] (.+\.mp3)/) || output.match(/\[ExtractAudio\] Destination: (.+\.mp3)/);
+          if (match) {
+            resolve(match[1]);
+          } else {
+            // Try to find any .mp3 file that was created
+            const files = fs.readdirSync(outputPath).filter((f: string) => f.endsWith('.mp3'));
+            if (files.length > 0) {
+              resolve(path.join(outputPath, files[0]));
+            } else {
+              reject(new Error('Could not determine downloaded file path'));
+            }
+          }
+        });
+
+        ytDlp.on('error', (err) => {
+          console.log(`Strategy ${strategyIndex + 1} error:`, err.message);
+          // Try next strategy
+          tryDownload(strategyIndex + 1);
+        });
+      };
+
+      // Start with the first strategy
+      tryDownload(0);
     });
   }
 }

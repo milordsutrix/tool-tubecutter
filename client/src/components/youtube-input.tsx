@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Search, Youtube, CheckCircle, AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { VideoInfo } from "@/pages/home";
+import YouTubeNotice from "./youtube-notice";
 
 interface YouTubeInputProps {
   youtubeUrl: string;
@@ -71,6 +72,8 @@ export default function YouTubeInput({
           <Youtube className="text-red-600 mr-2" />
           YouTube Video Input
         </h2>
+        
+        <YouTubeNotice />
         
         <div className="space-y-4">
           <div>
