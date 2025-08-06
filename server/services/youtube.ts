@@ -82,32 +82,21 @@ export class YouTubeService {
     return new Promise((resolve, reject) => {
       // Multiple fallback strategies for YouTube's anti-bot measures
       const strategies = [
-        // Strategy 1: Use iOS client
-        [
-          '--extractor-args', 'youtube:player_client=ios',
+        [ // Strategy 1: Authenticated request using browser cookies
+          '--cookies-from-browser', 'chrome',
           '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-          '-f', 'bestaudio',
+          '-f', 'bestaudio/best',
           '-o', path.join(outputPath, '%(title)s.%(ext)s'),
           url
         ],
-        // Strategy 2: Use web client with specific headers
-        [
-          '--extractor-args', 'youtube:player_client=web',
-          '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          '--referer', 'https://www.youtube.com/',
+        [ // Strategy 2: Anonymous request (fallback)
           '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-          '-f', 'bestaudio',
-          '-o', path.join(outputPath, '%(title)s.%(ext)s'),
-          url
-        ],
-        // Strategy 3: Basic download without client specification
-        [
-          '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-          '-f', 'worst',
+          '-f', 'bestaudio/best',
           '-o', path.join(outputPath, '%(title)s.%(ext)s'),
           url
         ]
       ];
+
 
       const tryDownload = (strategyIndex: number = 0): void => {
         if (strategyIndex >= strategies.length) {
