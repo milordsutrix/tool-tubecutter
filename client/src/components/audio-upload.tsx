@@ -122,7 +122,7 @@ export default function AudioUpload({ onUploadSuccess, disabled }: AudioUploadPr
               Drop your MP3 file here, or click to browse
             </p>
             <p className="text-xs text-gray-400">
-              Maximum file size: 100MB
+              Maximum file size: 600MB
             </p>
             <input
               ref={fileInputRef}

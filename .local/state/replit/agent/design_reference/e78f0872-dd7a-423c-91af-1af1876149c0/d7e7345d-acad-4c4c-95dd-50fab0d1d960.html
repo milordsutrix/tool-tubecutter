@@ -1,0 +1,554 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube MP3 Extractor - Multiple Selections</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: {
+                    'roboto': ['Roboto', 'sans-serif'],
+                },
+                colors: {
+                    'primary': '#1976D2',
+                    'primary-dark': '#1565C0',
+                    'secondary': '#424242',
+                    'success': '#4CAF50',
+                    'warning': '#FF9800',
+                    'error': '#F44336',
+                    'surface': '#FFFFFF',
+                    'background': '#FAFAFA'
+                },
+                boxShadow: {
+                    'material': '0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1)',
+                    'material-lg': '0 4px 8px rgba(0,0,0,0.12), 0 16px 32px rgba(0,0,0,0.12)'
+                }
+            }
+        }
+    };
+    </script>
+</head>
+<body class="font-roboto bg-background text-secondary min-h-screen">
+    <!-- @COMPONENT: AppHeader -->
+    <header class="bg-surface shadow-material sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                    <i class="fas fa-music text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-medium text-gray-900">YouTube MP3 Extractor</h1>
+                    <p class="text-sm text-gray-600">Extract multiple audio selections from YouTube videos</p>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: AppHeader -->
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- @COMPONENT: YouTubeInputCard -->
+        <div class="bg-surface rounded-lg shadow-material p-6 mb-8">
+            <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                <i class="fab fa-youtube text-red-600 mr-2"></i>
+                YouTube Video Input
+            </h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="youtube-url" class="block text-sm font-medium text-gray-700 mb-2">
+                        YouTube URL
+                    </label>
+                    <div class="relative">
+                        <input 
+                            type="url" 
+                            id="youtube-url" 
+                            data-bind="youtubeUrl"
+                            data-mock="true"
+                            placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 pr-12"
+                        />
+                        <button 
+                            type="button" 
+                            data-event="click:validateYouTubeUrl"
+                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-primary transition-colors"
+                        >
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <!-- @STATE: urlValidation: { isValid: boolean, message: string } -->
+                    <div class="mt-2 hidden" data-validation-feedback>
+                        <p class="text-sm text-error flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1"></i>
+                            <span data-mock="true">Please enter a valid YouTube URL</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Video Preview Section -->
+                <div class="hidden" data-video-preview data-implementation="Show after URL validation">
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-start space-x-4">
+                            <!-- Video thumbnail showing a music performance -->
+                            <img 
+                                src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?ixlib=rb-4.0.3&auto=format&fit=crop&w=120&h=90" 
+                                alt="Video thumbnail" 
+                                class="w-30 h-20 rounded object-cover"
+                                data-mock-image="true"
+                                data-implementation="Replace with actual YouTube thumbnail"
+                            />
+                            <div class="flex-1">
+                                <h3 class="font-medium text-gray-900" data-bind="video.title" data-mock="true">
+                                    Amazing Guitar Performance - Live Concert
+                                </h3>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    <span data-bind="video.duration" data-mock="true">Duration: 4:32</span> • 
+                                    <span data-bind="video.channel" data-mock="true">Music Channel</span>
+                                </p>
+                                <div class="flex items-center mt-2 text-sm text-success">
+                                    <i class="fas fa-check-circle mr-1"></i>
+                                    Video loaded successfully
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: YouTubeInputCard -->
+
+        <!-- @COMPONENT: SelectionsManager -->
+        <div class="bg-surface rounded-lg shadow-material p-6 mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-medium text-gray-900 flex items-center">
+                    <i class="fas fa-scissors text-primary mr-2"></i>
+                    Audio Selections
+                </h2>
+                <button 
+                    type="button" 
+                    data-event="click:addSelection"
+                    class="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
+                >
+                    <i class="fas fa-plus"></i>
+                    <span>Add Selection</span>
+                </button>
+            </div>
+
+            <!-- @STATE: selections: Array<{id: string, startTime: string, endTime: string, title: string}> -->
+            <div class="space-y-4" data-selections-container>
+                <!-- @MAP: selections.map((selection, index) => ( -->
+                
+                <!-- Selection Item 1 -->
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50" data-selection-item="1">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-medium text-gray-900 flex items-center">
+                            <span class="w-6 h-6 bg-primary text-white rounded-full text-xs flex items-center justify-center mr-2">1</span>
+                            Selection 1
+                        </h3>
+                        <button 
+                            type="button" 
+                            data-event="click:removeSelection"
+                            data-selection-id="1"
+                            class="text-gray-400 hover:text-error transition-colors p-1"
+                        >
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Start Time
+                            </label>
+                            <input 
+                                type="text" 
+                                data-bind="selection.startTime"
+                                data-mock="true"
+                                placeholder="00:30" 
+                                pattern="^([0-5]?[0-9]):([0-5][0-9])$|^([0-1]?[0-9]):([0-5]?[0-9]):([0-5][0-9])$"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">Format: MM:SS or HH:MM:SS</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                End Time
+                            </label>
+                            <input 
+                                type="text" 
+                                data-bind="selection.endTime"
+                                data-mock="true"
+                                placeholder="01:45" 
+                                pattern="^([0-5]?[0-9]):([0-5][0-9])$|^([0-1]?[0-9]):([0-5]?[0-9]):([0-5][0-9])$"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                File Title
+                            </label>
+                            <input 
+                                type="text" 
+                                data-bind="selection.title"
+                                data-mock="true"
+                                placeholder="Intro Guitar Solo" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">This will be the MP3 filename</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Selection Preview -->
+                    <div class="mt-4 p-3 bg-white rounded border border-gray-200">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Duration: <span class="font-medium" data-mock="true">1:15</span></span>
+                            <span class="text-gray-600">Output: <span class="font-mono text-primary" data-mock="true">intro-guitar-solo.mp3</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selection Item 2 -->
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50" data-selection-item="2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-medium text-gray-900 flex items-center">
+                            <span class="w-6 h-6 bg-primary text-white rounded-full text-xs flex items-center justify-center mr-2">2</span>
+                            Selection 2
+                        </h3>
+                        <button 
+                            type="button" 
+                            data-event="click:removeSelection"
+                            data-selection-id="2"
+                            class="text-gray-400 hover:text-error transition-colors p-1"
+                        >
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Start Time
+                            </label>
+                            <input 
+                                type="text" 
+                                data-bind="selection.startTime"
+                                data-mock="true"
+                                placeholder="02:15" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">Format: MM:SS or HH:MM:SS</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                End Time
+                            </label>
+                            <input 
+                                type="text" 
+                                data-bind="selection.endTime"
+                                data-mock="true"
+                                placeholder="03:30" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                File Title
+                            </label>
+                            <input 
+                                type="text" 
+                                data-bind="selection.title"
+                                data-mock="true"
+                                placeholder="Vocal Chorus" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">This will be the MP3 filename</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 p-3 bg-white rounded border border-gray-200">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Duration: <span class="font-medium" data-mock="true">1:15</span></span>
+                            <span class="text-gray-600">Output: <span class="font-mono text-primary" data-mock="true">vocal-chorus.mp3</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- @END_MAP )) -->
+
+                <!-- Empty State -->
+                <div class="text-center py-12 text-gray-500 hidden" data-empty-state>
+                    <i class="fas fa-music text-4xl mb-4 text-gray-300"></i>
+                    <p class="text-lg font-medium mb-2">No selections added yet</p>
+                    <p class="text-sm">Click "Add Selection" to define audio segments to extract</p>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: SelectionsManager -->
+
+        <!-- @COMPONENT: ProcessingCard -->
+        <div class="bg-surface rounded-lg shadow-material p-6 mb-8">
+            <h2 class="text-lg font-medium text-gray-900 mb-6 flex items-center">
+                <i class="fas fa-cogs text-primary mr-2"></i>
+                Processing
+            </h2>
+
+            <!-- Processing Summary -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                    <div>
+                        <div class="text-2xl font-bold text-primary" data-bind="selections.length" data-mock="true">2</div>
+                        <div class="text-sm text-gray-600">Selections</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold text-secondary" data-bind="totalDuration" data-mock="true">2:30</div>
+                        <div class="text-sm text-gray-600">Total Duration</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold text-success" data-bind="estimatedSize" data-mock="true">3.8MB</div>
+                        <div class="text-sm text-gray-600">Estimated Size</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Process Button -->
+            <div class="flex justify-center mb-6">
+                <button 
+                    type="button" 
+                    data-event="click:startProcessing"
+                    data-implementation="Should validate all selections before processing"
+                    class="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-3 shadow-material text-lg"
+                >
+                    <i class="fas fa-play"></i>
+                    <span>Start Processing</span>
+                </button>
+            </div>
+
+            <!-- Progress Section (Hidden by default, shown during processing) -->
+            <div class="hidden" data-processing-progress data-implementation="Show during processing">
+                <div class="space-y-4">
+                    <!-- Overall Progress -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700">Overall Progress</span>
+                            <span class="text-sm text-gray-600" data-bind="overallProgress" data-mock="true">1 of 2 completed</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 50%" data-bind="overallProgressPercent"></div>
+                        </div>
+                    </div>
+
+                    <!-- Individual Selection Progress -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-success"></i>
+                                <span class="font-medium" data-mock="true">intro-guitar-solo.mp3</span>
+                            </div>
+                            <span class="text-sm text-success font-medium">Completed</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <div class="animate-spin">
+                                    <i class="fas fa-spinner text-primary"></i>
+                                </div>
+                                <span class="font-medium" data-mock="true">vocal-chorus.mp3</span>
+                            </div>
+                            <span class="text-sm text-primary font-medium">Processing...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: ProcessingCard -->
+
+        <!-- @COMPONENT: DownloadsCard -->
+        <div class="bg-surface rounded-lg shadow-material p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-6 flex items-center">
+                <i class="fas fa-download text-success mr-2"></i>
+                Downloads
+            </h2>
+
+            <!-- Downloads List -->
+            <div class="space-y-3" data-downloads-list>
+                <!-- @MAP: completedFiles.map(file => ( -->
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-success rounded-lg flex items-center justify-center">
+                            <i class="fas fa-file-audio text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-medium text-gray-900" data-bind="file.name" data-mock="true">intro-guitar-solo.mp3</h3>
+                            <p class="text-sm text-gray-600">
+                                <span data-bind="file.duration" data-mock="true">1:15</span> • 
+                                <span data-bind="file.size" data-mock="true">1.9MB</span> • 
+                                <span class="text-success">Ready</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button 
+                            type="button" 
+                            data-event="click:previewAudio"
+                            data-file-id="file.id"
+                            class="text-gray-500 hover:text-primary transition-colors p-2"
+                            title="Preview"
+                        >
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button 
+                            type="button" 
+                            data-event="click:downloadFile"
+                            data-file-id="file.id"
+                            class="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
+                        >
+                            <i class="fas fa-download"></i>
+                            <span>Download</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- @END_MAP )) -->
+
+                <!-- Download All Button -->
+                <div class="pt-4 border-t border-gray-200">
+                    <button 
+                        type="button" 
+                        data-event="click:downloadAll"
+                        class="w-full bg-secondary hover:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
+                    >
+                        <i class="fas fa-archive"></i>
+                        <span>Download All as ZIP</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Empty Downloads State -->
+            <div class="text-center py-12 text-gray-500" data-empty-downloads>
+                <i class="fas fa-download text-4xl mb-4 text-gray-300"></i>
+                <p class="text-lg font-medium mb-2">No files ready yet</p>
+                <p class="text-sm">Processed files will appear here for download</p>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DownloadsCard -->
+    </main>
+
+    <!-- @COMPONENT: NotificationSnackbar -->
+    <div class="fixed bottom-4 right-4 z-50 hidden" data-notification data-implementation="Show/hide based on notification state">
+        <div class="bg-surface border border-gray-200 rounded-lg shadow-material-lg p-4 max-w-sm">
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-info-circle text-primary" data-notification-icon></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900" data-notification-title data-mock="true">Processing Started</p>
+                    <p class="text-sm text-gray-600 mt-1" data-notification-message data-mock="true">Your audio selections are being processed...</p>
+                </div>
+                <button 
+                    type="button" 
+                    data-event="click:dismissNotification"
+                    class="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                >
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: NotificationSnackbar -->
+
+    <script>
+    // TODO: Implement business logic, API calls, and state management
+    (function() {
+        'use strict';
+        
+        // Scoped application state management
+        const AppState = {
+            youtubeUrl: '',
+            videoInfo: null,
+            selections: [],
+            isProcessing: false,
+            completedFiles: []
+        };
+
+        // DOM utility functions
+        const DOM = {
+            getElement: (selector) => document.querySelector(selector),
+            getAllElements: (selector) => document.querySelectorAll(selector),
+            show: (element) => element?.classList.remove('hidden'),
+            hide: (element) => element?.classList.add('hidden'),
+            toggle: (element) => element?.classList.toggle('hidden')
+        };
+
+        // Mock interaction handlers - replace with actual implementations
+        const Handlers = {
+            addSelection: () => {
+                console.log('Add selection clicked - TODO: Add new selection form');
+                // TODO: Implement dynamic selection creation
+            },
+            
+            removeSelection: (event) => {
+                const selectionId = event.target.closest('[data-selection-id]')?.dataset.selectionId;
+                console.log('Remove selection:', selectionId);
+                // TODO: Implement selection removal
+            },
+            
+            validateYouTubeUrl: () => {
+                console.log('Validate URL clicked - TODO: Implement YouTube URL validation');
+                // TODO: Implement yt-dlp integration for URL validation
+            },
+            
+            startProcessing: () => {
+                console.log('Start processing clicked - TODO: Implement FFmpeg processing');
+                // TODO: Implement audio extraction pipeline
+            },
+            
+            downloadFile: (event) => {
+                const fileId = event.target.closest('[data-file-id]')?.dataset.fileId;
+                console.log('Download file:', fileId);
+                // TODO: Implement file download
+            },
+            
+            downloadAll: () => {
+                console.log('Download all clicked - TODO: Create ZIP archive');
+                // TODO: Implement ZIP creation and download
+            }
+        };
+
+        // Event delegation for dynamic content
+        document.addEventListener('click', function(event) {
+            const target = event.target.closest('[data-event]');
+            if (!target) return;
+            
+            const eventConfig = target.dataset.event;
+            const [eventType, handlerName] = eventConfig.split(':');
+            
+            if (eventType === 'click' && Handlers[handlerName]) {
+                event.preventDefault();
+                Handlers[handlerName](event);
+            }
+        });
+
+        // Form validation utilities
+        const Validation = {
+            timeFormat: (time) => {
+                const regex = /^([0-5]?[0-9]):([0-5][0-9])$|^([0-1]?[0-9]):([0-5]?[0-9]):([0-5][0-9])$/;
+                return regex.test(time);
+            },
+            
+            youtubeUrl: (url) => {
+                const regex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/;
+                return regex.test(url);
+            }
+        };
+
+        console.log('YouTube MP3 Extractor initialized - Ready for implementation');
+    })();
+    </script>
+</body>
+</html>
