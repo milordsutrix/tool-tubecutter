@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import PageLoader from "@/components/ui/page-loader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileAudio, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
@@ -14,6 +15,7 @@ export default function AudioUpload({ onUploadSuccess, disabled }: AudioUploadPr
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadCompleted, setUploadCompleted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (file: File) => {
@@ -70,7 +72,8 @@ export default function AudioUpload({ onUploadSuccess, disabled }: AudioUploadPr
 
       const data = await response.json();
       onUploadSuccess(data.videoId, data.videoInfo);
-      setSelectedFile(null);
+      // Keep the selected file visible after successful upload
+      setUploadCompleted(true);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Upload failed');
     } finally {
@@ -80,6 +83,7 @@ export default function AudioUpload({ onUploadSuccess, disabled }: AudioUploadPr
 
   const clearFile = () => {
     setSelectedFile(null);
+    setUploadCompleted(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -94,7 +98,9 @@ export default function AudioUpload({ onUploadSuccess, disabled }: AudioUploadPr
   };
 
   return (
-    <Card>
+    <>
+      <PageLoader isVisible={uploading} message={uploadCompleted ? "Finalizing..." : "Uploading file..."} />
+      <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileAudio className="h-5 w-5" />
@@ -152,18 +158,21 @@ export default function AudioUpload({ onUploadSuccess, disabled }: AudioUploadPr
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="mt-4 flex gap-2">
-              <Button
-                onClick={uploadFile}
-                disabled={uploading || disabled}
-                className="flex-1"
-              >
-                {uploading ? "Uploading..." : "Upload File"}
-              </Button>
-            </div>
+            {!uploadCompleted && (
+              <div className="mt-4 flex gap-2">
+                <Button
+                  onClick={uploadFile}
+                  disabled={uploading || disabled}
+                  className="flex-1"
+                >
+                  {uploading ? "Uploading..." : "Upload File"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
     </Card>
+    </>
   );
 }

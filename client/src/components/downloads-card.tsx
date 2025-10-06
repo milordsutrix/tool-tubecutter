@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import PageLoader from "@/components/ui/page-loader";
 import { Download, FileAudio, Archive, RotateCcw, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 
 interface Selection {
@@ -31,14 +32,17 @@ interface DownloadsCardProps {
 
 export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCardProps) {
   const [pollingInterval, setPollingInterval] = useState(1000);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/jobs", jobId],
     refetchInterval: pollingInterval,
   });
 
-  const job: Job = data?.job;
-  const selections: Selection[] = data?.selections || [];
+  const job: Job | undefined = (data as any)?.job;
+  const selections: Selection[] = (data as any)?.selections || [];
 
   // Stop polling when job is completed or errored
   useEffect(() => {
@@ -51,22 +55,90 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   const processingSelections = selections.filter(s => s.status === "processing");
   const errorSelections = selections.filter(s => s.status === "error");
 
-  const handleDownload = (selectionId: string) => {
-    const link = document.createElement('a');
-    link.href = `/api/download/${selectionId}`;
-    link.download = '';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (selectionId: string) => {
+    setDownloading(true);
+    setDownloadMessage("Preparing download...");
+    
+    try {
+      // Fetch the file to track download progress
+      const response = await fetch(`/api/download/${selectionId}`);
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      
+      setDownloadMessage("Downloading file...");
+      
+      // Get the blob data
+      const blob = await response.blob();
+      
+      // Create download link with blob
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = response.headers.get('content-disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'download.mp3';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(url);
+      
+      // Show success state briefly
+      setDownloadMessage("Download completed!");
+      setShowSuccess(true);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+    } finally {
+      setDownloading(false);
+      setDownloadMessage("");
+      setShowSuccess(false);
+    }
   };
 
-  const handleDownloadAll = () => {
-    const link = document.createElement('a');
-    link.href = `/api/download-all/${videoId}`;
-    link.download = 'audio-selections.zip';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadAll = async () => {
+    setDownloading(true);
+    setDownloadMessage("Preparing ZIP download...");
+    
+    try {
+      // Fetch the ZIP file to track download progress
+      const response = await fetch(`/api/download-all/${videoId}`);
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      
+      setDownloadMessage("Downloading ZIP file...");
+      
+      // Get the blob data
+      const blob = await response.blob();
+      
+      // Create download link with blob
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'audio-selections.zip';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(url);
+      
+      // Show success state briefly
+      setDownloadMessage("ZIP download completed!");
+      setShowSuccess(true);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+    } finally {
+      setDownloading(false);
+      setDownloadMessage("");
+      setShowSuccess(false);
+    }
   };
 
   const formatFileSize = (bytes: number | null): string => {
@@ -135,8 +207,10 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   }
 
   return (
-    <Card className="shadow-material">
-      <CardContent className="p-6">
+    <>
+      <PageLoader isVisible={downloading} message={downloadMessage} showSuccess={showSuccess} />
+      <Card className="shadow-material">
+        <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-medium text-gray-900 flex items-center">
             <Download className="text-success mr-2" />
@@ -224,5 +298,6 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
         </div>
       </CardContent>
     </Card>
+    </>
   );
 }
