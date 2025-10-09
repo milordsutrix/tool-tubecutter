@@ -10,12 +10,14 @@ import path from "path";
 import multer from "multer";
 import { spawn } from "child_process";
 import { DriveServiceFactory } from "./services/drive";
+import { webSocketService } from "./services/websocket"; // Importer le service WebSocket
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const youtubeService = YouTubeService.getInstance();
   const audioService = AudioService.getInstance();
   const uploadsDir = path.join(process.cwd(), 'uploads');
-
+  // ... (toutes les configurations et routes existantes jusqu'au callback du drive)
+  
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
@@ -58,7 +60,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // --- ROUTES EXISTANTES ---
   app.post("/api/upload", upload.single('audio'), async (req, res) => {
     try {
       if (!req.file) { return res.status(400).json({ message: "No file uploaded" }); }
@@ -157,8 +158,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- NOUVELLES ROUTES POUR LE FLUX POPUP DRIVE ---
-
   app.post("/api/drive/google/initiate-auth", async (req, res) => {
     try {
       const { selectionId } = req.body;
@@ -169,7 +168,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const authState = await storage.createAuthState(selectionId);
       const driveService = DriveServiceFactory.getDriveService('google');
       
-      // La méthode getAuthUrl a été modifiée pour accepter le 'state'
       const authUrl = driveService.getAuthUrl(authState.state);
       
       res.json({ authUrl });
@@ -183,7 +181,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { code, state } = req.query;
 
     const renderPopupScript = (type: 'success' | 'error', message: string) => {
-      // Utiliser l'URL du frontend depuis les variables d'environnement pour la sécurité
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5000';
       return `
         <!DOCTYPE html>
@@ -201,11 +198,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     if (!code || !state) {
-      return res.status(400).send("Code d'autorisation ou 'state' manquant.");
+      return res.status(400).send(renderPopupScript('error', 'Paramètres de callback invalides.'));
     }
     
     const authState = await storage.getAuthState(state as string);
-    
     if (!authState) {
       return res.status(400).send(renderPopupScript('error', 'État de la requête invalide ou expiré.'));
     }
@@ -217,34 +213,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tokens = await driveService.getTokens(code as string);
       
       const selection = await storage.getSelection(authState.selectionId);
-      if (!selection || !selection.filePath) {
+      if (!selection) {
         return res.send(renderPopupScript('error', 'Fichier non trouvé après authentification.'));
       }
+      
+      const job = await storage.getJobByVideoId(selection.videoId);
+      if (!job) {
+          return res.send(renderPopupScript('error', 'Tâche de traitement non trouvée.'));
+      }
 
-      // Déclencher l'upload en arrière-plan sans bloquer la réponse
+      // Déclencher l'upload en arrière-plan
       driveService.uploadFile(
-        selection.filePath,
+        selection.filePath!,
         selection.filename || `${selection.title}.mp3`,
         tokens
       ).then(file => {
-        console.log(`Fichier ${file.name} envoyé avec succès sur le Drive.`);
-        // TODO: Envoyer une notification WebSocket/SSE au client pour le succès final
+        console.log(`Upload success for ${file.name}`);
+        // Envoyer un message de succès via WebSocket
+        webSocketService.sendMessage(job.id, 'upload-success', { 
+            selectionId: selection.id,
+            fileName: file.name
+        });
       }).catch(err => {
-        console.error("Erreur lors de l'upload en arrière-plan:", err);
-        // TODO: Envoyer une notification WebSocket/SSE au client pour l'échec
+        console.error("Background upload error:", err);
+        // Envoyer un message d'échec via WebSocket
+        webSocketService.sendMessage(job.id, 'upload-failure', {
+            selectionId: selection.id,
+            fileName: selection.filename || `${selection.title}.mp3`,
+            error: err.message || 'Unknown error'
+        });
       });
       
       res.send(renderPopupScript('success', 'Authentification réussie. L\'envoi du fichier a commencé.'));
 
     } catch (error) {
-      console.error("Échec de l'échange de code:", error);
+      console.error("Callback handler error:", error);
       res.send(renderPopupScript('error', 'Échec de l\'obtention des jetons d\'accès.'));
     }
   });
 
-
-  // --- FONCTION DE TRAITEMENT ASYNCHRONE ---
   async function processVideoAsync(videoId: string, jobId: string) {
+    // ... (votre fonction processVideoAsync existante)
     try {
       await storage.updateJob(jobId, { status: "processing", progress: 10 });
       const video = await storage.getVideo(videoId);

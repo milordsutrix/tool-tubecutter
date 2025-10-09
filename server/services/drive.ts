@@ -8,9 +8,10 @@ export interface DriveFile {
 }
 
 export interface IDriveService {
-  getAuthUrl(state?: string): string;
+  // La signature est modifiée pour inclure le 'state'
+  getAuthUrl(state: string): string;
   getTokens(code: string): Promise<any>;
-  uploadFile(filePath: string, fileName: string, accessToken: string): Promise<DriveFile>;
+  uploadFile(filePath: string, fileName: string, tokens: any): Promise<DriveFile>;
 }
 
 export class DriveServiceFactory {
@@ -18,7 +19,7 @@ export class DriveServiceFactory {
     switch (provider) {
       case 'google':
         return new GoogleDriveService();
-      // Add other providers here in the future
+      // Ajouter d'autres fournisseurs ici à l'avenir
       // case 'onedrive':
       //   return new OneDriveService();
       default:

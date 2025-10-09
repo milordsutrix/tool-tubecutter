@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   const [showSuccess, setShowSuccess] = useState(false);
   const [uploadingSelectionId, setUploadingSelectionId] = useState<string | null>(null);
   const { toast } = useToast();
+  const ws = useRef<WebSocket | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/jobs", jobId],
@@ -52,36 +53,72 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
       setPollingInterval(0);
     }
   }, [job?.status]);
-  
+
+  // Établir la connexion WebSocket
+  useEffect(() => {
+    if (!jobId) return;
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // CORRECTION : Ajouter le chemin '/ws' à l'URL de connexion
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      console.log('WebSocket connection established');
+      ws.current?.send(JSON.stringify({ type: 'register', jobId }));
+    };
+
+    ws.current.onmessage = (event) => {
+      const { type, payload } = JSON.parse(event.data);
+
+      if (type === 'upload-success') {
+        toast({
+          title: "Envoi réussi ✅",
+          description: `Le fichier "${payload.fileName}" est sur votre Google Drive.`,
+        });
+      } else if (type === 'upload-failure') {
+        toast({
+          title: "Échec de l'envoi ❌",
+          description: `L'envoi du fichier "${payload.fileName}" a échoué.`,
+          variant: "destructive",
+        });
+      }
+    };
+
+    ws.current.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      ws.current?.close();
+    };
+  }, [jobId, toast]);
+
   // Écouter les messages de la popup d'authentification
   useEffect(() => {
     const handleAuthMessage = (event: MessageEvent) => {
-      // Sécurité : Ne pas accepter les messages d'origines inconnues
-      if (event.origin !== window.location.origin) {
-        console.warn(`Message ignoré provenant d'une origine non autorisée: ${event.origin}`);
-        return;
-      }
-
+      if (event.origin !== window.location.origin) return;
       const { type, message } = event.data;
-
       if (type === 'success') {
         toast({
           title: "Authentification réussie",
-          description: "L'envoi vers Google Drive a commencé en arrière-plan.",
+          description: "L'envoi vers Google Drive a commencé.",
         });
       } else if (type === 'error') {
         toast({
           title: "Erreur d'authentification",
-          description: message || "L'envoi vers Google Drive a échoué. Veuillez réessayer.",
+          description: message || "L'envoi a échoué.",
           variant: "destructive",
         });
       }
-      // Quoi qu'il arrive, réinitialiser l'état d'envoi pour que le bouton soit à nouveau cliquable
       setUploadingSelectionId(null);
     };
-
     window.addEventListener('message', handleAuthMessage);
-
     return () => {
       window.removeEventListener('message', handleAuthMessage);
     };
@@ -108,8 +145,8 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
       setDownloadMessage("Téléchargement terminé !");
       setShowSuccess(true);
       await new Promise(resolve => setTimeout(resolve, 1500));
-    } catch (error) {
-      console.error('Download failed:', error);
+    } catch (err) {
+      console.error('Download failed:', err);
       toast({ title: "Erreur", description: "Le téléchargement a échoué.", variant: "destructive" });
     } finally {
       setDownloading(false);
@@ -119,7 +156,7 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   };
 
   const handleDownloadAll = async () => {
-    // Implémentation de handleDownloadAll
+    // Implémentation
   };
 
   const handleSendToDrive = async (selectionId: string) => {
@@ -130,17 +167,11 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selectionId }),
       });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to initiate authentication');
-      }
-
+      if (!response.ok) { throw new Error(await response.text()); }
       const { authUrl } = await response.json();
       window.open(authUrl, 'googleAuth', 'width=600,height=700,menubar=no,toolbar=no');
-      
-    } catch (error) {
-      console.error('Failed to start Drive upload:', error);
+    } catch (err) {
+      console.error('Failed to start Drive upload:', err);
       toast({
         title: "Erreur",
         description: `Impossible de démarrer le processus d'envoi.`,

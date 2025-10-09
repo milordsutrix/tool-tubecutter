@@ -49,7 +49,7 @@ export class MemStorage implements IStorage {
           this.oauthStates.delete(state);
           console.log(`État OAuth expiré et supprimé: ${state}`);
         }
-      }
+      });
     }, 60000);
   }
 
