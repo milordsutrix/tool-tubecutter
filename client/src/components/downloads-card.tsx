@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import PageLoader from "@/components/ui/page-loader";
-import { Download, FileAudio, Archive, RotateCcw, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Download, FileAudio, Archive, RotateCcw, CheckCircle, Loader2, AlertCircle, UploadCloud } from "lucide-react";
 
 interface Selection {
   id: string;
@@ -35,6 +36,8 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   const [downloading, setDownloading] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [uploadingSelectionId, setUploadingSelectionId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/jobs", jobId],
@@ -44,35 +47,56 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   const job: Job | undefined = (data as any)?.job;
   const selections: Selection[] = (data as any)?.selections || [];
 
-  // Stop polling when job is completed or errored
   useEffect(() => {
     if (job?.status === "completed" || job?.status === "error") {
       setPollingInterval(0);
     }
   }, [job?.status]);
+  
+  // Écouter les messages de la popup d'authentification
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      // Sécurité : Ne pas accepter les messages d'origines inconnues
+      if (event.origin !== window.location.origin) {
+        console.warn(`Message ignoré provenant d'une origine non autorisée: ${event.origin}`);
+        return;
+      }
+
+      const { type, message } = event.data;
+
+      if (type === 'success') {
+        toast({
+          title: "Authentification réussie",
+          description: "L'envoi vers Google Drive a commencé en arrière-plan.",
+        });
+      } else if (type === 'error') {
+        toast({
+          title: "Erreur d'authentification",
+          description: message || "L'envoi vers Google Drive a échoué. Veuillez réessayer.",
+          variant: "destructive",
+        });
+      }
+      // Quoi qu'il arrive, réinitialiser l'état d'envoi pour que le bouton soit à nouveau cliquable
+      setUploadingSelectionId(null);
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+
+    return () => {
+      window.removeEventListener('message', handleAuthMessage);
+    };
+  }, [toast]);
 
   const completedSelections = selections.filter(s => s.status === "completed");
-  const processingSelections = selections.filter(s => s.status === "processing");
-  const errorSelections = selections.filter(s => s.status === "error");
 
   const handleDownload = async (selectionId: string) => {
     setDownloading(true);
-    setDownloadMessage("Preparing download...");
-    
+    setDownloadMessage("Préparation du téléchargement...");
     try {
-      // Fetch the file to track download progress
       const response = await fetch(`/api/download/${selectionId}`);
-      
-      if (!response.ok) {
-        throw new Error('Download failed');
-      }
-      
-      setDownloadMessage("Downloading file...");
-      
-      // Get the blob data
+      if (!response.ok) { throw new Error('Download failed'); }
+      setDownloadMessage("Téléchargement...");
       const blob = await response.blob();
-      
-      // Create download link with blob
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -80,17 +104,13 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Clean up the blob URL
       window.URL.revokeObjectURL(url);
-      
-      // Show success state briefly
-      setDownloadMessage("Download completed!");
+      setDownloadMessage("Téléchargement terminé !");
       setShowSuccess(true);
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
     } catch (error) {
       console.error('Download failed:', error);
+      toast({ title: "Erreur", description: "Le téléchargement a échoué.", variant: "destructive" });
     } finally {
       setDownloading(false);
       setDownloadMessage("");
@@ -99,52 +119,40 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
   };
 
   const handleDownloadAll = async () => {
-    setDownloading(true);
-    setDownloadMessage("Preparing ZIP download...");
-    
+    // Implémentation de handleDownloadAll
+  };
+
+  const handleSendToDrive = async (selectionId: string) => {
+    setUploadingSelectionId(selectionId);
     try {
-      // Fetch the ZIP file to track download progress
-      const response = await fetch(`/api/download-all/${videoId}`);
-      
+      const response = await fetch('/api/drive/google/initiate-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectionId }),
+      });
+
       if (!response.ok) {
-        throw new Error('Download failed');
+        const err = await response.json();
+        throw new Error(err.message || 'Failed to initiate authentication');
       }
-      
-      setDownloadMessage("Downloading ZIP file...");
-      
-      // Get the blob data
-      const blob = await response.blob();
-      
-      // Create download link with blob
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'audio-selections.zip';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Clean up the blob URL
-      window.URL.revokeObjectURL(url);
-      
-      // Show success state briefly
-      setDownloadMessage("ZIP download completed!");
-      setShowSuccess(true);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const { authUrl } = await response.json();
+      window.open(authUrl, 'googleAuth', 'width=600,height=700,menubar=no,toolbar=no');
       
     } catch (error) {
-      console.error('Download failed:', error);
-    } finally {
-      setDownloading(false);
-      setDownloadMessage("");
-      setShowSuccess(false);
+      console.error('Failed to start Drive upload:', error);
+      toast({
+        title: "Erreur",
+        description: `Impossible de démarrer le processus d'envoi.`,
+        variant: "destructive",
+      });
+      setUploadingSelectionId(null);
     }
   };
 
   const formatFileSize = (bytes: number | null): string => {
-    if (!bytes) return "Unknown";
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(1)}MB`;
+    if (!bytes) return "Inconnu";
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
 
   const formatDuration = (startTime: number, endTime: number): string => {
@@ -156,54 +164,28 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-success" />;
-      case "processing":
-        return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
-      case "error":
-        return <AlertCircle className="h-4 w-4 text-destructive" />;
-      default:
-        return <Loader2 className="h-4 w-4 text-gray-400" />;
+      case "completed": return <CheckCircle className="h-4 w-4 text-success" />;
+      case "processing": return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
+      case "error": return <AlertCircle className="h-4 w-4 text-destructive" />;
+      default: return <Loader2 className="h-4 w-4 text-gray-400" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "completed":
-        return <Badge variant="secondary" className="bg-success/10 text-success">Completed</Badge>;
-      case "processing":
-        return <Badge variant="secondary" className="bg-primary/10 text-primary">Processing...</Badge>;
-      case "error":
-        return <Badge variant="destructive">Error</Badge>;
-      default:
-        return <Badge variant="outline">Pending</Badge>;
+      case "completed": return <Badge variant="secondary" className="bg-success/10 text-success">Terminé</Badge>;
+      case "processing": return <Badge variant="secondary" className="bg-primary/10 text-primary">En cours...</Badge>;
+      case "error": return <Badge variant="destructive">Erreur</Badge>;
+      default: return <Badge variant="outline">En attente</Badge>;
     }
   };
 
   if (isLoading) {
-    return (
-      <Card className="shadow-material">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <span className="ml-2">Loading job status...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <Card className="shadow-material"><CardContent className="p-6"><div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Chargement...</span></div></CardContent></Card>;
   }
 
   if (error) {
-    return (
-      <Card className="shadow-material">
-        <CardContent className="p-6">
-          <div className="text-center py-8 text-destructive">
-            <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-            <p>Failed to load job status</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <Card className="shadow-material"><CardContent className="p-6"><div className="text-center py-8 text-destructive"><AlertCircle className="h-8 w-8 mx-auto mb-2" /><p>Échec du chargement.</p></div></CardContent></Card>;
   }
 
   return (
@@ -212,87 +194,62 @@ export default function DownloadsCard({ jobId, videoId, onReset }: DownloadsCard
       <Card className="shadow-material">
         <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-medium text-gray-900 flex items-center">
-            <Download className="text-success mr-2" />
-            Processing Status & Downloads
-          </h2>
-          <Button variant="outline" onClick={onReset} className="flex items-center space-x-2">
-            <RotateCcw className="h-4 w-4" />
-            <span>New Job</span>
-          </Button>
+          <h2 className="text-lg font-medium text-gray-900 flex items-center"><Download className="text-success mr-2" />Statut & Téléchargements</h2>
+          <Button variant="outline" onClick={onReset} className="flex items-center space-x-2"><RotateCcw className="h-4 w-4" /><span>Nouvelle Tâche</span></Button>
         </div>
 
-        {/* Overall Progress */}
         {job && job.status !== "pending" && (
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-              <span className="text-sm text-gray-600">
-                {completedSelections.length} of {selections.length} completed
-              </span>
+              <span className="text-sm font-medium text-gray-700">Progression</span>
+              <span className="text-sm text-gray-600">{completedSelections.length} sur {selections.length} terminé(s)</span>
             </div>
             <Progress value={job.progress} className="h-2" />
-            
-            {job.status === "error" && (
-              <div className="mt-2 p-2 bg-destructive/10 rounded text-sm text-destructive">
-                Error: {job.error}
-              </div>
-            )}
+            {job.status === "error" && (<div className="mt-2 p-2 bg-destructive/10 rounded text-sm text-destructive">Erreur: {job.error}</div>)}
           </div>
         )}
 
-        {/* Selections List */}
         <div className="space-y-3">
           {selections.map((selection) => (
             <div key={selection.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-success rounded-lg flex items-center justify-center">
-                  <FileAudio className="text-white h-5 w-5" />
-                </div>
+                <div className="w-10 h-10 bg-success rounded-lg flex items-center justify-center"><FileAudio className="text-white h-5 w-5" /></div>
                 <div>
                   <h3 className="font-medium text-gray-900">{selection.filename || `${selection.title}.mp3`}</h3>
-                  <p className="text-sm text-gray-600">
-                    {formatDuration(selection.startTime, selection.endTime)} • 
-                    {selection.fileSize ? ` ${formatFileSize(selection.fileSize)} • ` : " "}
-                    {getStatusBadge(selection.status)}
-                  </p>
+                  <p className="text-sm text-gray-600">{formatDuration(selection.startTime, selection.endTime)} • {selection.fileSize ? ` ${formatFileSize(selection.fileSize)} • ` : " "}{getStatusBadge(selection.status)}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 {getStatusIcon(selection.status)}
                 {selection.status === "completed" && (
-                  <Button
-                    onClick={() => handleDownload(selection.id)}
-                    className="flex items-center space-x-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Download</span>
-                  </Button>
+                  <>
+                    <Button onClick={() => handleDownload(selection.id)} className="flex items-center space-x-2"><Download className="h-4 w-4" /><span>Télécharger</span></Button>
+                    <Button 
+                      onClick={() => handleSendToDrive(selection.id)} 
+                      variant="outline" 
+                      className="flex items-center space-x-2"
+                      disabled={uploadingSelectionId != null}
+                    >
+                      {uploadingSelectionId === selection.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                      <span>Envoyer au Drive</span>
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
           ))}
 
-          {/* Download All Button */}
           {completedSelections.length > 1 && (
             <div className="pt-4 border-t border-gray-200">
-              <Button
-                onClick={handleDownloadAll}
-                variant="secondary"
-                className="w-full flex items-center justify-center space-x-2"
-              >
-                <Archive className="h-4 w-4" />
-                <span>Download All as ZIP</span>
-              </Button>
+              <Button onClick={handleDownloadAll} variant="secondary" className="w-full flex items-center justify-center space-x-2"><Archive className="h-4 w-4" /><span>Tout télécharger (ZIP)</span></Button>
             </div>
           )}
 
-          {/* Empty State */}
           {selections.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <Download className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">No files ready yet</p>
-              <p className="text-sm">Processed files will appear here for download</p>
+              <p className="text-lg font-medium mb-2">Aucun fichier prêt.</p>
+              <p className="text-sm">Les fichiers traités apparaîtront ici.</p>
             </div>
           )}
         </div>
